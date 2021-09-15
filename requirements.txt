@@ -2,3 +2,4 @@
 pytube==11.0.1
 streamlit==0.64.0
 neattext==0.1.1
+matplotlib==3.4.3
