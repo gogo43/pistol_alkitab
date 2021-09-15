@@ -1,117 +1,103 @@
-import datetime
-import requests
-import os
-import re
-import pytube
-import subprocess
-from pytube import YouTube
+from numpy import array
 import streamlit as st
-from PIL import Image
-from io import BytesIO
+import streamlit.components.v1 as stc
+
 import pandas as pd
-import glob
-from glob import iglob
+import neattext.functions as nfx
 
-def getVideo(url): #Check to ensure that the video can be found
-    global video_found, video
-    try:
-        video = YouTube(url)
-        video_found = True
-    except pytube.exceptions.RegexMatchError:
-        st.error('Invalid URL.')
-        video_found = False
-    except pytube.exceptions.VideoUnavailable:
-        st.error('This video is unavailable')
-        video_found = False
-    return video
 
-def loadThumbnail(image_url):
-    response = requests.get(image_url)
-    img = Image.open(BytesIO(response.content))
-    return img
+import matplotlib.pyplot as plt
+import altair as alt
+import random
 
-def get_binary_file_downloader_html(bin_file, file_label='File'):
-    with open(bin_file, 'rb') as f:
-        data = f.read()
-    bin_str = base64.b64encode(data).decode()
-    href = f'<a href="data:application/octet-stream;base64,{bin_str}" download="{os.path.basename(bin_file)}">Download {file_label}</a>'
-    return href
-    
 @st.cache
-def getStats(video): # Return the formated video stats
-    header = (f'**{video.title}**' 
-            + f' *By:{video.author} *')
-    thumbnail = loadThumbnail(video.thumbnail_url)
-    info = (f'Length: **{datetime.timedelta(seconds = video.length)}** \n'
-          + f'Views: **{video.views:,}**')
-    return header, thumbnail, info
+def load_bible(data):
+    df = pd.read_csv(data)
+    return df
 
-st.title('Pistol air YouTube Downloader')
+def load_bible2(data):
+    df2 = pd.read_csv(data)
+    return df2
+def main():
+    st.title("Pistol Air Alkitab")
+    menu = ['Home','Multiverse','Search','About']
+    
+    df = load_bible('data/tb.csv')
+    df2 = load_bible2('data/tb2.csv')
 
-url = st.text_input('Enter the URL of the YouTube video')
+    choice = st.sidebar.selectbox('Menu',menu)
+    if choice == 'Home':
+        st.subheader("Single Verse Alkitab")
+        #st.dataframe(df)
+        kitab_list = df['kitab'].unique().tolist()
+        kitab_name = st.sidebar.selectbox('Kitab',kitab_list)
+        pasal = st.sidebar.number_input('Pasal',1)
+        ayat = st.sidebar.number_input('Ayat',1)
+        bible_df = df[df['kitab']== kitab_name]
+        #st.dataframe(bible_df)
+        try:
+            selected_passage = bible_df[(bible_df['pasal'] == pasal) & (bible_df['ayat'] == ayat)]
+            #st.write(selected_passage)
+            passage_detail ="{} Pasal:: {} Ayat:: {}".format(kitab_name,pasal,ayat)
+            st.info(passage_detail)
+            passage = "{}".format(selected_passage['firman'].values[0])
+            st.write(passage)
+        except:
+            st.warning('Book is out of range')
+        
+        ## ------------random Ayat ---------------##
 
-if url:
-    video = getVideo(url)
-    if video_found:
-        header, thumbnail, info = getStats(video)
-        st.header(header)
-        st.image(thumbnail, width = 750)
-        st.write(info)
-        download_type = st.radio(
-        'Select the type of download you would like', [
-        'Video and Audio (.mkv)', 
-        'Audio Only (.mp3)', 
-        'Video Only (.mp4)']
-        )
+        #st.success('Satu Ayat Setiap Hari')
+        #pasal_list = range(10)
+        #ayat_list = range(20)
+        #ps_list = random.choice(pasal_list)
+        #ay_list =random.choice(ayat_list)
+        #random_kitab_name = random.choice(kitab_list)
+        #st.write("Kitab:{} Pasal:{} Ayat:{}".format(random_kitab_name,ps_list,ay_list))
+        #rand_kitab_df = df[df['kitab'] == random_kitab_name]
+        #try:
+            #randomly_selected_passage = rand_kitab_df[(rand_kitab_df ['pasal'] == ps_list) & (rand_kitab_df ['ayat'] == ay_list)]
+            #mytext=randomly_selected_passage['firman'].values[0]
+        #except:
+            #randomly_selected_passage = rand_kitab_df[(rand_kitab_df ['pasal'] == 1) & (rand_kitab_df ['ayat'] == 1)]
+            #mytext=randomly_selected_passage['firman'].values[0]
+        #sst.write(mytext)
 
-        if download_type == 'Video and Audio (.mkv)':
-            video_stream = video.streams.filter(type = 'video', subtype = 'mp4').order_by(attribute_name = 'resolution').last()
-            audio_stream = video.streams.get_audio_only()
-            filesize = round((video_stream.filesize + audio_stream.filesize)/1000000, 2)
-            if st.button(f'Download (~{filesize} MB)'): 
-            # To get the highest resolution, the audio and video streams must be installed seperate as .mp4s,
-            # so the audio track must be converted to an mp3, then merged with the video, then the other files must be deleted
-                with st.spinner(
-                 f'Downloading {video.title}... ***Please wait to open any files until the download has finished***'
-                ):
-                    video_stream.download(filename = 'video-track')
-                    audio_stream.download(filename = 'audio-track')
-                    convert_mp3 = 'ffmpeg -i audio-track.mp4 audio-track.mp3'
-                    subprocess.run(convert_mp3, shell = True)
-                    
-                    formatted_title = re.sub("[^0-9a-zA-Z]+", "-", video.title)
-                    merge_audio_video = (
-                                         'ffmpeg -y -i audio-track.mp3 '
-                                         '-r 30 -i video-track.mp4 '
-                                         '-filter:a aresample=async=1 -c:a flac -c:v '
-                                        f'copy Downloads/{formatted_title}.mkv'
-                                          )
-                    subprocess.run(merge_audio_video, shell = True)
-                   
-              
-                st.success(f'Finished Downloading {video.title}!')
-                f = open("Downloads/*.mkv', "r")
-                st.markdown(get_binary_file_downloader_html(f), unsafe_allow_html=True)  
+    elif choice =='Search':
+        st.subheader("Search Alkitab")
+       
+        #-------------topic search--------------##
+        search_term = st.text_input('Search name in alkitab')
+        with st.expander ('View result'):
+                retreived_df=df[df['firman'].str.contains(search_term)]
+                st.dataframe(retreived_df[['kitab','pasal','ayat','firman']])
+                          
 
-        if download_type == 'Audio Only (.mp3)':
-            stream = video.streams.get_audio_only()
-            filesize = round(stream.filesize/1000000, 2)
-            if st.button(f'Download (~{filesize} MB)'):
-                with st.spinner(
-                 f'Downloading {video.title}... ***Please wait to open any files until the download has finished***'
-                ):
-                    stream.download(filename = 'audio')
-                    convert_mp3 = f'ffmpeg -i audio.mp4 Downloads/{re.sub("[^0-9a-zA-Z]+", "-", video.title)}.mp3'
-                    subprocess.run(convert_mp3, shell = True)
-                   
-                st.success(f'Finished Downloading {video.title}!')
+    elif choice =='Multiverse':
+        st.subheader("Multi Verse Alkitab")
+        kitab_list = df2['kitab'].unique().tolist()
+        kitab_name = st.sidebar.selectbox('Kitab',kitab_list)
+        pasal = st.sidebar.number_input('Pasal',1)
+        bible_df = df2[(df2['kitab']== kitab_name) & (df2['pasal'] == pasal)]
+        ayat_list=  df2['ayat'].unique().tolist()
+        ayat =st.sidebar.multiselect('Ayat',ayat_list,default=1)
+        #st.write(ayat)
+        selected_passage = bible_df.iloc[ayat]
+        #st.write(selected_passage)
+        passage_detail ="{} Pasal:{} Ayat:{}".format(kitab_name,pasal,ayat)
+        st.info(passage_detail)
+        #st.dataframe(selected_passage)
+        
+        
+        st.info('Details')
+        for i, row in selected_passage.iterrows():
+            st.write(row['firman'])
+    
 
-        if download_type == 'Video Only (.mp4)':
-            stream = video.streams.filter(type = 'video', subtype = 'mp4').order_by(attribute_name = 'resolution').last()
-            filesize = round(stream.filesize/1000000, 2)
-            if st.button(f'Download (~{filesize} MB)'):
-                with st.spinner(
-                 f'Downloading {video.title}... ***Please wait to open any files until the download has finished***'
-                ):
-                    stream.download(filename = video.title + ' Video Only', output_path = 'Downloads')
-                st.success(f'Finished Downloading {video.title}!')
+    else :
+        st.subheader('Create by Pistolair')
+        st.text('pistol.air32@gmail.com')
+
+
+if __name__ == '__main__' :
+    main()
