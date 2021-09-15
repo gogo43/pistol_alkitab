@@ -1,3 +1,3 @@
-# pistol-yt
+# pistol-ALkitab
 
-Youtube downloader by pistol air
+Alkitab by Pistol air
