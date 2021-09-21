@@ -22,7 +22,7 @@ def main():
     st.title("Pistol Air Alkitab")
     menu = ['Home','Multiverse','Search','About']
     
-    df = load_bible('data/tb.csv')
+    df = load_bible('data/tb3.csv')
     df2 = load_bible2('data/tb2.csv')
 
     choice = st.sidebar.selectbox('Menu',menu)
